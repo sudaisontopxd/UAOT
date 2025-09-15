@@ -1,0 +1,284 @@
+-- 🌌 Titan Slayer Ultimate GUI (PhantomFlux Ultra Style)
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local TweenService = game:GetService("TweenService")
+local Plr = Players.LocalPlayer
+
+-- Events & folders
+local DamageEvent = ReplicatedStorage:WaitForChild("DamageEvent")
+local CutLimbsEvent = ReplicatedStorage:WaitForChild("CutLimbsEvent")
+local Titans = Workspace.Entities.Titans
+local Marleyans = Workspace.Entities.Humanoids
+local killKey = "&@&*&@&"
+
+-- Auto-enabled features
+local autoKillTitans = true
+local autoKillMarleyans = false
+local killAuraEnabled = true
+local detitanizeEnabled = true
+local tweenSpeed = 2
+
+-- GUI Utils
+local function animateButton(btn)
+    local origSize = btn.Size
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.2, Enum.EasingStyle.Bounce), {Size = origSize + UDim2.new(0.05,0,0.05,0)}):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.2, Enum.EasingStyle.Bounce), {Size = origSize}):Play()
+    end)
+end
+
+local function cycleTextColor(obj)
+    spawn(function()
+        while obj and obj.Parent do
+            TweenService:Create(obj, TweenInfo.new(2), {TextColor3 = Color3.fromHSV(math.random(), 1, 1)}):Play()
+            wait(2)
+        end
+    end)
+end
+
+-- Notification system
+local function notify(text, color)
+    local notif = Instance.new("Frame")
+    notif.Size = UDim2.new(0,300,0,50)
+    notif.Position = UDim2.new(0.5,-150,0,100)
+    notif.BackgroundColor3 = color or Color3.fromRGB(60,60,90)
+    notif.BackgroundTransparency = 0.1
+    notif.Parent = gui
+    Instance.new("UICorner", notif).CornerRadius = UDim.new(0,12)
+    local label = Instance.new("TextLabel", notif)
+    label.Size = UDim2.new(1,0,1,0)
+    label.BackgroundTransparency = 1
+    label.TextColor3 = Color3.new(1,1,1)
+    label.Text = text
+    label.Font = Enum.Font.GothamBold
+    label.TextScaled = true
+    label.TextWrapped = true
+
+    notif.Position = UDim2.new(0.5,-150,-0.2,0)
+    TweenService:Create(notif, TweenInfo.new(0.5, Enum.EasingStyle.Quad), {Position = UDim2.new(0.5,-150,0,100)}):Play()
+    task.delay(2,function()
+        TweenService:Create(notif, TweenInfo.new(0.5, Enum.EasingStyle.Quad), {Position = UDim2.new(0.5,-150,-0.2,0)}):Play()
+        task.wait(0.5)
+        notif:Destroy()
+    end)
+end
+
+-- GUI Setup
+local gui = Instance.new("ScreenGui")
+gui.Name = "TitanSlayerGUI"
+gui.ResetOnSpawn = false
+gui.Parent = game:GetService("CoreGui")
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0,360,0,420)
+frame.Position = UDim2.new(0.5,0,0.5,0)
+frame.AnchorPoint = Vector2.new(0.5,0.5)
+frame.BackgroundColor3 = Color3.fromRGB(30,30,50)
+frame.BackgroundTransparency = 0.05
+frame.Parent = gui
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0,20)
+
+local gradient = Instance.new("UIGradient", frame)
+gradient.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(90,40,255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(40,200,255))
+}
+gradient.Rotation = 45
+
+-- Glow shadow effect
+local shadow = Instance.new("Frame", frame)
+shadow.Size = UDim2.new(1,0,1,0)
+shadow.BackgroundTransparency = 0.8
+shadow.ZIndex = -1
+Instance.new("UICorner", shadow).CornerRadius = UDim.new(0,20)
+
+-- Title
+local title = Instance.new("TextLabel", frame)
+title.Size = UDim2.new(1,0,0,60)
+title.Position = UDim2.new(0,0,0,0)
+title.BackgroundTransparency = 1
+title.Font = Enum.Font.GothamBold
+title.TextScaled = true
+title.TextColor3 = Color3.fromRGB(255,255,255)
+title.Text = "Phantom Flux"
+cycleTextColor(title)
+
+-- Titan Counter
+local titanCounter = Instance.new("TextLabel", frame)
+titanCounter.Size = UDim2.new(1,-20,0,40)
+titanCounter.Position = UDim2.new(0,10,0,360)
+titanCounter.BackgroundTransparency = 1
+titanCounter.Font = Enum.Font.Gotham
+titanCounter.TextScaled = true
+titanCounter.TextColor3 = Color3.fromRGB(255,255,255)
+titanCounter.Text = "Titans Alive: 0"
+
+task.spawn(function()
+    while task.wait(1) do
+        local count = 0
+        for _, titan in ipairs(Titans:GetChildren()) do
+            local hum = titan:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 then
+                count += 1
+            end
+        end
+        titanCounter.Text = "Titans Alive: "..count
+    end
+end)
+
+-- Toggle Buttons with animated highlights
+local function createToggle(name, yPos, callback, enabled)
+    local btn = Instance.new("TextButton", frame)
+    btn.Size = UDim2.new(0.9,0,0,50)
+    btn.Position = UDim2.new(0.05,0,0,yPos)
+    btn.Text = (enabled and "✅ " or "❌ ")..name
+    btn.Font = Enum.Font.GothamBold
+    btn.TextScaled = true
+    btn.TextColor3 = Color3.fromRGB(255,255,255)
+    btn.BackgroundColor3 = Color3.fromRGB(50,50,80)
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0,12)
+    
+    -- Highlight frame
+    local highlight = Instance.new("Frame", btn)
+    highlight.Size = UDim2.new(0,0,1,0)
+    highlight.Position = UDim2.new(0,0,0,0)
+    highlight.BackgroundColor3 = Color3.fromRGB(255,255,255)
+    highlight.BackgroundTransparency = 0.3
+    Instance.new("UICorner", highlight).CornerRadius = UDim.new(0,12)
+    
+    local function updateHighlight()
+        TweenService:Create(highlight, TweenInfo.new(0.4, Enum.EasingStyle.Quad), {Size = enabled and UDim2.new(1,0,1,0) or UDim2.new(0,0,1,0)}):Play()
+    end
+    
+    animateButton(btn)
+    updateHighlight()
+    
+    btn.MouseButton1Click:Connect(function()
+        enabled = not enabled
+        btn.Text = (enabled and "✅ " or "❌ ")..name
+        updateHighlight()
+        callback(enabled)
+        notify(name.." "..(enabled and "Enabled" or "Disabled"), enabled and Color3.fromRGB(0,200,0) or Color3.fromRGB(200,0,0))
+    end)
+end
+
+createToggle("Kill Aura", 80, function(state) killAuraEnabled = state end, true)
+createToggle("Cut Limbs", 150, function(state) detitanizeEnabled = state end, true)
+createToggle("Auto Kill Titans", 220, function(state) autoKillTitans = state end, true)
+createToggle("Auto Kill Marleyans", 290, function(state) autoKillMarleyans = state end, false)
+
+-- [KEEP ALL LOGIC FROM YOUR PREVIOUS SCRIPT]
+-- Kill Aura, Detitanize, Auto Kill Titans, Auto Kill Marleyans
+-- ... (same loops as before, fully functional)
+
+-- 🌌 Auto Kill + Kill Aura + Cut Limbs Logic
+local function IsNear(part)
+    local hrp = Plr.Character and Plr.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp or not part then return false end
+    local range = 200
+    for _, titan in ipairs(Titans:GetChildren()) do
+        if string.lower(titan.Name):find("colossal") then
+            range = 9e9
+            break
+        end
+    end
+    return (part.Position - hrp.Position).Magnitude <= range
+end
+
+local function tweenToPosition(cf)
+    local hrp = Plr.Character and Plr.Character:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        local tween = TweenService:Create(hrp, TweenInfo.new(tweenSpeed), {CFrame = cf})
+        tween:Play()
+        tween.Completed:Wait()
+    end
+end
+
+local function getNearestEnemy(folder)
+    local hrp = Plr.Character and Plr.Character:FindFirstChild("HumanoidRootPart")
+    local nearest, shortest = nil, math.huge
+    for _, enemy in pairs(folder:GetChildren()) do
+        local humanoid = enemy:FindFirstChildOfClass("Humanoid")
+        local part = enemy.PrimaryPart or enemy:FindFirstChildWhichIsA("BasePart")
+        if humanoid and humanoid.Health > 0 and part and not part.Anchored then
+            local dist = (hrp.Position - part.Position).Magnitude
+            if dist < shortest then
+                shortest = dist
+                nearest = {model = enemy, humanoid = humanoid, part = part}
+            end
+        end
+    end
+    return nearest
+end
+
+-- Kill Aura Loop
+task.spawn(function()
+    while task.wait(0.1) do
+        if killAuraEnabled then
+            for _, titan in ipairs(Titans:GetChildren()) do
+                local hum = titan:FindFirstChild("Humanoid")
+                local nape = titan:FindFirstChild("NapeHitbox")
+                if hum and nape and hum.Health > 0 and IsNear(nape) then
+                    DamageEvent:FireServer(nil, hum, killKey, titan)
+                end
+            end
+            for _, marleyan in ipairs(Marleyans:GetChildren()) do
+                local hum = marleyan:FindFirstChild("Humanoid")
+                if hum and hum.Health > 0 then
+                    DamageEvent:FireServer(nil, hum, killKey, marleyan)
+                end
+            end
+        end
+    end
+end)
+
+-- Detitanize Loop
+task.spawn(function()
+    while task.wait(0.1) do
+        if detitanizeEnabled then
+            for _, titan in ipairs(Titans:GetChildren()) do
+                local hum = titan:FindFirstChild("Humanoid")
+                local nape = titan:FindFirstChild("NapeHitbox")
+                if hum and hum.Health > 0 and nape and IsNear(nape) then
+                    CutLimbsEvent:FireServer("Left Arm", titan, killKey)
+                    CutLimbsEvent:FireServer("Right Arm", titan, killKey, "Right Shoulder")
+                    CutLimbsEvent:FireServer("Left Arm", titan, killKey, "Left Shoulder")
+                    DamageEvent:FireServer("Blind", hum, killKey, titan)
+                end
+            end
+        end
+    end
+end)
+
+-- Auto Kill Titans
+task.spawn(function()
+    while task.wait(0.1) do
+        if autoKillTitans then
+            local target = getNearestEnemy(Titans)
+            if target then
+                tweenToPosition(target.part.CFrame + Vector3.new(0,2,0))
+                for _ = 1,50 do
+                    DamageEvent:FireServer(nil, target.humanoid, killKey, target.model)
+                end
+            end
+        end
+    end
+end)
+
+-- Auto Kill Marleyans
+task.spawn(function()
+    while task.wait(0.1) do
+        if autoKillMarleyans then
+            local target = getNearestEnemy(Marleyans)
+            if target then
+                tweenToPosition(target.part.CFrame + Vector3.new(0,2,0))
+                for _ = 1,50 do
+                    DamageEvent:FireServer(nil, target.humanoid, killKey, target.model)
+                end
+            end
+        end
+    end
+end)
