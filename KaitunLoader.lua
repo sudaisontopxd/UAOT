@@ -1,3 +1,4 @@
+-- Kaitun Auto Loader - Auto Rejoin Loop
 local SCRIPT_URL = "https://raw.githubusercontent.com/sudaisontopxd/UAOT/refs/heads/main/kaitun"
 local LOADER_URL = "https://raw.githubusercontent.com/sudaisontopxd/UAOT/refs/heads/main/KaitunLoader.lua"
 
@@ -6,15 +7,7 @@ local Workspace = game:GetService("Workspace")
 local TeleportService = game:GetService("TeleportService")
 local Plr = Players.LocalPlayer
 
--- Prevent rapid re-execution
-do
-    if getgenv().rz_last_exec and (tick() - getgenv().rz_last_exec) <= 2 then
-        return
-    end
-    getgenv().rz_last_exec = tick()
-end
-
--- Notification utility
+-- Notification function
 local function notify(msg)
     print("[Loader] " .. tostring(msg))
     pcall(function()
@@ -26,20 +19,7 @@ local function notify(msg)
     end)
 end
 
--- Queue on teleport
-do
-    local executor = syn or fluxus or {}
-    local queueteleport = queue_on_teleport or executor.queue_on_teleport
-    if type(queueteleport) == "function" then
-        local self_code = ("loadstring(game:HttpGet('%s'))()"):format(LOADER_URL)
-        pcall(queueteleport, self_code)
-        notify("Auto Rejoin Loaded")
-    else
-        notify("queue_on_teleport not supported by executor")
-    end
-end
-
--- Fetch + load utility
+-- Fetch and load script
 local function fetchAndLoad(url)
     local ok, res = pcall(game.HttpGet, game, url)
     if not ok or not res or res == "" then
@@ -48,51 +28,53 @@ local function fetchAndLoad(url)
     end
     local fn, err = loadstring(res)
     if not fn then
-        notify("Syntax error in: " .. tostring(url) .. "\n" .. tostring(err))
+        notify("Syntax error in script: " .. tostring(err))
         return nil
     end
     return fn
 end
 
--- Flag to prevent repeated rejoin attempts
-if getgenv().kaitunAlreadyLoaded == nil then
-    getgenv().kaitunAlreadyLoaded = false
-end
-
--- Check for Titans
-local function titansExist()
-    local entities = Workspace:FindFirstChild("Entities")
-    if entities then
-        local titans = entities:FindFirstChild("Titans")
-        if titans and #titans:GetChildren() > 0 then
-            return true
-        end
+-- Queue on teleport (auto-rejoin)
+do
+    local executor = syn or fluxus or {}
+    local queueteleport = queue_on_teleport or executor.queue_on_teleport
+    if type(queueteleport) == "function" then
+        local self_code = ("loadstring(game:HttpGet('%s'))()"):format(LOADER_URL)
+        pcall(queueteleport, self_code)
+        notify("Auto Rejoin Enabled")
+    else
+        notify("queue_on_teleport not supported by executor, use Synapse or Fluxus")
     end
-    return false
 end
 
--- Main execution
-if titansExist() then
-    if not getgenv().kaitunAlreadyLoaded then
+-- Infinite Loader Loop
+spawn(function()
+    while true do
+        -- Execute Kaitun
+        notify("Executing Kaitun...")
         local fn = fetchAndLoad(SCRIPT_URL)
         if fn then
-            notify("Running Kaitun")
             local ok, err = pcall(fn)
             if not ok then
                 notify("Runtime error: " .. tostring(err))
-            else
-                getgenv().kaitunAlreadyLoaded = true
             end
         end
-    else
-        notify("Kaitun already loaded")
-    end
-else
-    if not getgenv().alreadyRejoined then
-        notify("No Titans detected. Rejoining...")
-        getgenv().alreadyRejoined = true
+
+        -- Wait until Titans are 0
+        notify("Waiting for Titans to be defeated...")
+        repeat
+            local titansFolder = Workspace:WaitForChild("Entities"):WaitForChild("Titans")
+            task.wait(2)
+        until #titansFolder:GetChildren() == 0
+
+        -- Titans are gone, rejoin
+        notify("All Titans defeated! Rejoining...")
+        task.wait(2)
         TeleportService:Teleport(game.PlaceId, Plr)
-    else
-        notify("Already attempted rejoin, waiting for next load...")
+
+        -- Wait 20–40 seconds for the game to properly load
+        local waitTime = math.random(20, 40)
+        notify("Waiting " .. waitTime .. " seconds for game to load...")
+        task.wait(waitTime)
     end
-end
+end)
