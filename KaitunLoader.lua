@@ -1,4 +1,4 @@
--- Kaitun Auto Loader with Auto Rejoin Loop (Waits for Titans)
+-- Kaitun Auto Loader with Safe Titan Check and Infinite Auto-Rejoin
 local SCRIPT_URL = "https://raw.githubusercontent.com/sudaisontopxd/UAOT/refs/heads/main/kaitun"
 local LOADER_URL = "https://raw.githubusercontent.com/sudaisontopxd/UAOT/refs/heads/main/KaitunLoader.lua"
 
@@ -27,7 +27,7 @@ local function notify(msg)
     end)
 end
 
--- Queue on teleport (auto-rejoin)
+-- Queue on teleport
 do
     local executor = syn or fluxus or {}
     local queueteleport = queue_on_teleport or executor.queue_on_teleport
@@ -55,57 +55,51 @@ local function fetchAndLoad(url)
     return fn
 end
 
--- Flag to prevent reloading Kaitun multiple times
-getgenv().kaitunLoaded = getgenv().kaitunLoaded or false
-
 -- Infinite loader loop
 spawn(function()
     while true do
+        -- Wait for game to fully load
+        if not Workspace:IsDescendantOf(game) then
+            task.wait(3)
+        end
+
         local titansFolder = Workspace:FindFirstChild("Entities") and Workspace.Entities:FindFirstChild("Titans")
 
-        if titansFolder then
-            local titans = titansFolder:GetChildren()
-            if #titans > 0 then
-                -- Wait until all Titans are fully spawned
-                local fullySpawned = true
-                for _, titan in ipairs(titans) do
-                    if not titan:FindFirstChild("Humanoid") or not titan.PrimaryPart then
-                        fullySpawned = false
-                        break
-                    end
+        if titansFolder and #titansFolder:GetChildren() > 0 then
+            -- Wait until all Titans are fully spawned
+            local fullySpawned = true
+            for _, titan in ipairs(titansFolder:GetChildren()) do
+                if not titan:FindFirstChild("Humanoid") or not titan.PrimaryPart then
+                    fullySpawned = false
+                    break
                 end
+            end
 
-                if fullySpawned then
-                    if not getgenv().kaitunLoaded then
-                        notify("All Titans spawned! Executing Kaitun...")
-                        local fn = fetchAndLoad(SCRIPT_URL)
-                        if fn then
-                            local ok, err = pcall(fn)
-                            if not ok then
-                                notify("Runtime error: " .. tostring(err))
-                            else
-                                getgenv().kaitunLoaded = true
-                            end
+            if fullySpawned then
+                if not getgenv().kaitunLoaded then
+                    notify("All Titans spawned! Executing Kaitun...")
+                    local fn = fetchAndLoad(SCRIPT_URL)
+                    if fn then
+                        local ok, err = pcall(fn)
+                        if not ok then
+                            notify("Runtime error: " .. tostring(err))
+                        else
+                            getgenv().kaitunLoaded = true
                         end
-                    else
-                        notify("Kaitun already loaded, skipping...")
                     end
                 else
-                    notify("Waiting for Titans to fully spawn...")
+                    notify("Kaitun already loaded, waiting for next check...")
                 end
             else
-                notify("No Titans detected. Rejoining...")
-                getgenv().kaitunLoaded = false
-                task.wait(2)
-                TeleportService:Teleport(game.PlaceId, Plr)
-                task.wait(10)
+                notify("Waiting for Titans to fully spawn...")
             end
         else
-            notify("No Titans folder found. Rejoining...")
+            notify("No Titans detected. Rejoining in 3 seconds...")
             getgenv().kaitunLoaded = false
-            task.wait(2)
+            task.wait(3)
+            -- Teleport and stop the current loader loop, reload after teleport
             TeleportService:Teleport(game.PlaceId, Plr)
-            task.wait(10)
+            return
         end
 
         task.wait(5)
