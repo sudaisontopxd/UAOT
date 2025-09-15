@@ -1,13 +1,8 @@
--- Kaitun Auto Loader with Safe Titan Check and Infinite Auto-Rejoin
+
 local SCRIPT_URL = "https://raw.githubusercontent.com/sudaisontopxd/UAOT/refs/heads/main/kaitun"
 local LOADER_URL = "https://raw.githubusercontent.com/sudaisontopxd/UAOT/refs/heads/main/KaitunLoader.lua"
 
-local Players = game:GetService("Players")
-local TeleportService = game:GetService("TeleportService")
-local Workspace = game:GetService("Workspace")
-local Plr = Players.LocalPlayer
 
--- Prevent rapid re-execution
 do
     if getgenv().rz_last_exec and (tick() - getgenv().rz_last_exec) <= 2 then
         return
@@ -15,32 +10,32 @@ do
     getgenv().rz_last_exec = tick()
 end
 
--- Notification function
+
 local function notify(msg)
     print("[Loader] " .. tostring(msg))
     pcall(function()
         game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "Kaitun Loader",
+            Title = "Kaitun ",
             Text = msg,
             Duration = 5
         })
     end)
 end
 
--- Queue on teleport
+
 do
     local executor = syn or fluxus or {}
     local queueteleport = queue_on_teleport or executor.queue_on_teleport
     if type(queueteleport) == "function" then
         local self_code = ("loadstring(game:HttpGet('%s'))()"):format(LOADER_URL)
         pcall(queueteleport, self_code)
-        notify("Auto Rejoin Enabled")
+        notify("Loaded Auto Rejoin")
     else
-        notify("queue_on_teleport not supported by executor, use Synapse or Fluxus")
+        notify("queue_on_teleport not supported by executor use Delta")
     end
 end
 
--- Fetch and load script
+-- fetch + load utility
 local function fetchAndLoad(url)
     local ok, res = pcall(game.HttpGet, game, url)
     if not ok or not res or res == "" then
@@ -55,53 +50,13 @@ local function fetchAndLoad(url)
     return fn
 end
 
--- Infinite loader loop
-spawn(function()
-    while true do
-        -- Wait for game to fully load
-        if not Workspace:IsDescendantOf(game) then
-            task.wait(3)
+
+    local fn = fetchAndLoad(SCRIPT_URL)
+    if fn then
+        notify("Running Kaitun")
+        local ok, err = pcall(fn, ...)
+        if not ok then
+            notify("Runtime error: " .. tostring(err))
         end
-
-        local titansFolder = Workspace:FindFirstChild("Entities") and Workspace.Entities:FindFirstChild("Titans")
-
-        if titansFolder and #titansFolder:GetChildren() > 0 then
-            -- Wait until all Titans are fully spawned
-            local fullySpawned = true
-            for _, titan in ipairs(titansFolder:GetChildren()) do
-                if not titan:FindFirstChild("Humanoid") or not titan.PrimaryPart then
-                    fullySpawned = false
-                    break
-                end
-            end
-
-            if fullySpawned then
-                if not getgenv().kaitunLoaded then
-                    notify("All Titans spawned! Executing Kaitun...")
-                    local fn = fetchAndLoad(SCRIPT_URL)
-                    if fn then
-                        local ok, err = pcall(fn)
-                        if not ok then
-                            notify("Runtime error: " .. tostring(err))
-                        else
-                            getgenv().kaitunLoaded = true
-                        end
-                    end
-                else
-                    notify("Kaitun already loaded, waiting for next check...")
-                end
-            else
-                notify("Waiting for Titans to fully spawn...")
-            end
-        else
-            notify("No Titans detected. Rejoining in 3 seconds...")
-            getgenv().kaitunLoaded = false
-            task.wait(3)
-            -- Teleport and stop the current loader loop, reload after teleport
-            TeleportService:Teleport(game.PlaceId, Plr)
-            return
-        end
-
-        task.wait(5)
     end
-end)
+
