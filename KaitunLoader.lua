@@ -1,6 +1,6 @@
 
 local SCRIPT_URL = "https://raw.githubusercontent.com/sudaisontopxd/UAOT/refs/heads/main/kaitun"
-local LOADER_URL = "https://raw.githubusercontent.com/sudaisontopxd/FlagWarsScript/refs/heads/main/Loader.lua"
+local LOADER_URL = "https://raw.githubusercontent.com/sudaisontopxd/UAOT/refs/heads/main/KaitunLoader.lua"
 
 
 do
