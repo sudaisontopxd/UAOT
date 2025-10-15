@@ -1,50 +1,70 @@
---[[ 
-♻️ INFINITE AUTO MISSION LOOP (REJOIN + AUTO START)
-🧩 Features:
-✅ Creates & starts private missions
-✅ Queues kaitun and auto mission code before teleport
-✅ Waits for mission end (GameFinished)
-✅ Rejoins and continues forever
---]]
+
+
+repeat task.wait() until game:IsLoaded()
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TeleportService = game:GetService("TeleportService")
 local player = Players.LocalPlayer
 
--- Detect queue_on_teleport support
-local queue = queue_on_teleport or queueonteleport or syn and syn.queue_on_teleport
-if not queue then
-	warn("⚠️ Your executor does not support queue_on_teleport.")
-end
+-- Detect queue function
+local queue = queue_on_teleport or queueonteleport or (syn and syn.queue_on_teleport)
 
--- === Code that should run after teleport ===
+-- 🌀 Kaitun + Mission Rejoin Logic (stored as one plain string)
 local kaitunQueue = [[
 repeat task.wait() until game:IsLoaded()
+
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TeleportService = game:GetService("TeleportService")
+local player = Players.LocalPlayer
 
 -- Wait for Titans to spawn
-local success, TitansFolder = pcall(function()
+local ok, TitansFolder = pcall(function()
 	return workspace:WaitForChild("Entities"):WaitForChild("Titans", 30)
 end)
-if success and TitansFolder then
+if ok and TitansFolder then
 	repeat task.wait() until #TitansFolder:GetChildren() > 0
+	print("🌀 Titans spawned — running kaitun loader...")
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/sudaisontopxd/UAOT/refs/heads/main/kaitun"))()
 else
-	warn("⚠️ Titans didn't spawn, retrying later...")
+	warn("⚠️ Titans didn't spawn in time.")
 end
 
--- Wait for 5 seconds after kaitun executes, then restart mission loop
-task.wait(5)
-loadstring(game:HttpGet("https://raw.githubusercontent.com/sudaisontopxd/UAOT/refs/heads/main/autoMissionLoop.lua"))()
+-- Setup mission end detector
+local network = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage
+local gameFinished = network:WaitForChild("GameFinished", 30)
+
+if gameFinished then
+	print("✅ Mission End Detector ready...")
+	gameFinished.OnClientEvent:Connect(function(result)
+		print("🏁 Mission finished:", result)
+		task.wait()
+
+		local queue = queue_on_teleport or queueonteleport or (syn and syn.queue_on_teleport)
+		if queue then
+			print("💾 Re-queuing kaitun script for next join...")
+			queue(game:HttpGet("https://raw.githubusercontent.com/sudaisontopxd/UAOT/refs/heads/main/autoMissionLoop.lua"))
+		else
+			warn("⚠️ queue_on_teleport not supported on this executor.")
+		end
+
+		print("🔁 Rejoining same place...")
+		pcall(function()
+			TeleportService:Teleport(game.PlaceId, player)
+		end)
+	end)
+else
+	warn("❌ No GameFinished event found.")
+end
 ]]
 
--- === Mission Creation & Start ===
+-- 🧠 Function to create + start mission
 local function startMission()
 	local network = ReplicatedStorage:WaitForChild("Network")
 	local lobbyRemote = network:WaitForChild("LobbyRemote")
 
-	print("🛰️ Creating Private Mission...")
+	print("🛰️ Creating private mission...")
 	lobbyRemote:FireServer(table.unpack({
 		[1] = "CreateMission",
 		[2] = {
@@ -56,66 +76,25 @@ local function startMission()
 	}))
 
 	task.wait(5)
-	print("🚀 Starting Mission...")
+
+	print("🚀 Starting mission...")
 	lobbyRemote:FireServer(table.unpack({
 		[1] = "Start",
 		[2] = { ["Modifiers"] = {} },
 	}))
 
-	-- Queue kaitun + rejoin loop for after teleport
+	-- Queue kaitun immediately after mission starts
 	if queue then
-		print("💾 Queuing kaitun + mission restart for teleport...")
+		print("💾 Queuing kaitun for mission teleport...")
 		queue(kaitunQueue)
 	else
-		warn("❌ queue_on_teleport not supported.")
+		warn("⚠️ queue_on_teleport not supported.")
 	end
 end
 
--- === Wait for mission to end ===
-local function waitForMissionEnd()
-	local network = ReplicatedStorage:WaitForChild("Network")
-	local gameFinished = network:WaitForChild("GameFinished", 10)
-
-	if not gameFinished then
-		warn("❌ Could not find GameFinished remote.")
-		return nil
-	end
-
-	print("✅ Listening for GameFinished event...")
-	return gameFinished.OnClientEvent
-end
-
--- === Infinite Mission Loop ===
+-- 🔁 Infinite Mission Loop
 while task.wait(3) do
-	print("🌌 Starting new mission cycle...")
+	print("🌌 Starting mission cycle...")
 	startMission()
-
-	local event = waitForMissionEnd()
-	if not event then
-		task.wait(10)
-		continue
-	end
-
-	local ended = false
-	local connection
-	connection = event:Connect(function(result, leaderboard)
-		print("🎯 Mission Ended:", result)
-		ended = true
-		connection:Disconnect()
-
-		if queue then
-			print("💾 Queuing kaitun + restart for rejoin...")
-			queue(kaitunQueue)
-		end
-
-		print("🔁 Rejoining server...")
-		TeleportService:Teleport(game.PlaceId, player)
-	end)
-
-	task.wait(600) -- 10-minute safety timeout
-	if not ended then
-		warn("⏰ Timeout — Forcing rejoin.")
-		if queue then queue(kaitunQueue) end
-		TeleportService:Teleport(game.PlaceId, player)
-	end
+	task.wait(99999) -- wait until teleport resets
 end
