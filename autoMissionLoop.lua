@@ -48,7 +48,7 @@ if gameFinished then
 	gameFinished.OnClientEvent:Connect(function(result)
 		print("🏁 Mission finished:", result)
 
-		task.wait(5)
+		task.wait()
 		print("🔁 Rejoining same place...")
 		local ok, err = pcall(function()
 			TeleportService:Teleport(game.PlaceId, player)
