@@ -38,7 +38,7 @@ else
 end
 
 -- 🧭 Mission End Detector
-task.wait(5)
+task.wait()
 local network = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage
 local gameFinished = network:FindFirstChild("GameFinished")
 
